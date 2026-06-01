@@ -1,0 +1,26 @@
+{
+  "name": "@property-ai/worker",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx watch src/index.ts",
+    "start": "node dist/index.js",
+    "lint": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@property-ai/ai": "workspace:*",
+    "@property-ai/config": "workspace:*",
+    "@property-ai/database": "workspace:*",
+    "@property-ai/lead-engine": "workspace:*",
+    "@property-ai/logger": "workspace:*",
+    "@property-ai/property-engine": "workspace:*",
+    "@property-ai/shared": "workspace:*",
+    "@property-ai/twilio": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^20.12.0",
+    "tsx": "^4.10.0",
+    "typescript": "^5.4.0"
+  }
+}

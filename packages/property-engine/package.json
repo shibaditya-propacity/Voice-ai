@@ -1,0 +1,21 @@
+{
+  "name": "@property-ai/property-engine",
+  "version": "1.0.0",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "scripts": {
+    "build": "tsc",
+    "lint": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@property-ai/shared": "workspace:*",
+    "@property-ai/database": "workspace:*",
+    "@property-ai/logger": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.0",
+    "@types/node": "^20.12.0",
+    "vitest": "^1.6.0"
+  }
+}

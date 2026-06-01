@@ -1,0 +1,19 @@
+{
+  "name": "@property-ai/twilio",
+  "version": "1.0.0",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "scripts": {
+    "build": "tsc",
+    "lint": "tsc --noEmit"
+  },
+  "dependencies": {
+    "twilio": "^5.2.0",
+    "@property-ai/shared": "workspace:*",
+    "@property-ai/logger": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.0",
+    "@types/node": "^20.12.0"
+  }
+}

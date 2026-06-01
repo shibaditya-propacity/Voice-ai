@@ -1,0 +1,142 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  MANAGER
+}
+
+enum PropertyType {
+  APARTMENT
+  VILLA
+  COMMERCIAL
+  PLOT
+}
+
+enum SiteVisitStatus {
+  SCHEDULED
+  COMPLETED
+  CANCELLED
+}
+
+enum ConversationRole {
+  USER
+  ASSISTANT
+  SYSTEM
+}
+
+model User {
+  id        String   @id @default(cuid())
+  name      String
+  email     String   @unique
+  password  String
+  role      Role     @default(MANAGER)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Lead {
+  id           String       @id @default(cuid())
+  name         String?
+  phone        String       @unique
+  email        String?
+  city         String?
+  area         String?
+  budget       String?
+  bhk          String?
+  propertyType PropertyType?
+  loanRequired Boolean      @default(false)
+  timeline     String?
+  leadScore    Int          @default(0)
+  notes        String?
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  conversations Conversation[]
+  siteVisits    SiteVisit[]
+  callLogs      CallLog[]
+}
+
+model Property {
+  id                String       @id @default(cuid())
+  name              String
+  city              String
+  area              String
+  address           String?
+  bhk               String
+  configurations    String[]
+  propertyType      PropertyType
+  price             Float
+  pricePerSqftMin   Int?
+  pricePerSqftMax   Int?
+  description       String
+  developer         String?
+  developerUsp      String?
+  totalUnits        Int?
+  availableUnits    Int?
+  towers            Int?
+  floors            Int?
+  landArea          String?
+  openSpace         String?
+  reraApproved      Boolean      @default(false)
+  launchDate        String?
+  possessionDate    String?
+  amenities         String[]
+  nearbyLandmarks   String[]
+  nearbySchools     String[]
+  nearbyHospitals   String[]
+  nearbyMalls       String[]
+  rentalYield       String?
+  projectUsp        String[]
+  bookingAmount     String?
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+
+  siteVisits SiteVisit[]
+}
+
+model Conversation {
+  id        String           @id @default(cuid())
+  leadId    String
+  role      ConversationRole
+  content   String
+  language  String           @default("en")
+  createdAt DateTime         @default(now())
+
+  lead Lead @relation(fields: [leadId], references: [id], onDelete: Cascade)
+}
+
+model SiteVisit {
+  id         String          @id @default(cuid())
+  leadId     String
+  propertyId String
+  visitDate  DateTime
+  status     SiteVisitStatus @default(SCHEDULED)
+  notes      String?
+  createdAt  DateTime        @default(now())
+  updatedAt  DateTime        @updatedAt
+
+  lead     Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  property Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+}
+
+model CallLog {
+  id        String   @id @default(cuid())
+  leadId    String?
+  callSid   String   @unique
+  duration  Int      @default(0)
+  language  String   @default("en")
+  summary   String?
+  direction String   @default("inbound")
+  from      String?
+  to        String?
+  createdAt DateTime @default(now())
+
+  lead Lead? @relation(fields: [leadId], references: [id], onDelete: SetNull)
+}

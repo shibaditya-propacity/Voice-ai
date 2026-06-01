@@ -1,0 +1,42 @@
+FROM node:20-alpine AS base
+RUN corepack enable && corepack prepare pnpm@9.0.0 --activate
+WORKDIR /app
+
+FROM base AS deps
+COPY package.json pnpm-workspace.yaml pnpm-lock.yaml* ./
+COPY apps/voice-agent/package.json ./apps/voice-agent/
+COPY packages/ai/package.json ./packages/ai/
+COPY packages/config/package.json ./packages/config/
+COPY packages/database/package.json ./packages/database/
+COPY packages/elevenlabs/package.json ./packages/elevenlabs/
+COPY packages/lead-engine/package.json ./packages/lead-engine/
+COPY packages/logger/package.json ./packages/logger/
+COPY packages/shared/package.json ./packages/shared/
+COPY packages/twilio/package.json ./packages/twilio/
+RUN pnpm install --frozen-lockfile
+
+FROM base AS builder
+COPY --from=deps /app/node_modules ./node_modules
+COPY . .
+RUN pnpm --filter @property-ai/shared build
+RUN pnpm --filter @property-ai/logger build
+RUN pnpm --filter @property-ai/config build
+RUN pnpm --filter @property-ai/database build
+RUN pnpm --filter @property-ai/ai build
+RUN pnpm --filter @property-ai/elevenlabs build
+RUN pnpm --filter @property-ai/lead-engine build
+RUN pnpm --filter @property-ai/twilio build
+RUN pnpm --filter @property-ai/voice-agent build
+
+FROM base AS runner
+ENV NODE_ENV=production
+COPY --from=builder /app/apps/voice-agent/dist ./apps/voice-agent/dist
+COPY --from=builder /app/packages ./packages
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/apps/voice-agent/node_modules ./apps/voice-agent/node_modules
+
+RUN mkdir -p /app/apps/voice-agent/public/audio
+
+WORKDIR /app/apps/voice-agent
+EXPOSE 4001
+CMD ["node", "dist/index.js"]

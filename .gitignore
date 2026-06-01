@@ -1,0 +1,13 @@
+node_modules/
+dist/
+.env
+.env.*
+!.env.example
+*.log
+coverage/
+.turbo/
+.DS_Store
+*.tsbuildinfo
+public/audio/
+.audio-cache/
+*.mp3

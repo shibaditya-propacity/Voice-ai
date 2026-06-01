@@ -1,0 +1,26 @@
+{
+  "name": "property-ai-platform",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev",
+    "lint": "turbo run lint",
+    "test": "turbo run test",
+    "clean": "turbo run clean",
+    "db:generate": "pnpm --filter @property-ai/database exec prisma generate",
+    "db:migrate": "pnpm --filter @property-ai/database exec prisma migrate deploy",
+    "db:studio": "pnpm --filter @property-ai/database exec prisma studio",
+    "db:seed": "pnpm --filter @property-ai/database exec prisma db seed"
+  },
+  "devDependencies": {
+    "turbo": "^2.0.0",
+    "typescript": "^5.4.0",
+    "@types/node": "^20.12.0"
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "pnpm": ">=9.0.0"
+  },
+  "packageManager": "pnpm@9.0.0"
+}
