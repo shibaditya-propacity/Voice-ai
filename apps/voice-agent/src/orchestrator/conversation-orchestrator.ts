@@ -191,13 +191,40 @@ export class ConversationOrchestrator {
     void this.persistConversationTurn(state, text, this.currentResponseText, correlationId);
   }
 
+  // ─── Language switch detection ────────────────────────────────────────────
+
+  private detectLanguageSwitch(state: ConversationState, transcript: string): void {
+    const t = transcript.toLowerCase();
+    let next: ConversationState['language'] | null = null;
+
+    if (/hindi|हिंदी|hindi\s*(mein|me|main|bolo|bol|bolna|speak|talk)/.test(t)) next = 'hi';
+    else if (/marathi|मराठी/.test(t)) next = 'mr';
+    else if (/english|angrezi/.test(t)) next = 'en';
+
+    if (next && next !== state.language) {
+      sessionStore.update(this.callSid, { language: next });
+      state.language = next;
+      log.info({ callSid: this.callSid, language: next }, 'Language switched');
+    }
+  }
+
   private async runPipeline(
     state: ConversationState,
     transcript: string,
     correlationId: string
   ): Promise<void> {
-    // Step 1: Planner — intent + tool decisions (~200ms)
     this.metrics.markLlmStart(correlationId);
+
+    // Detect language-switch request before the planner runs so the response
+    // agent uses the correct system prompt from the very first token.
+    this.detectLanguageSwitch(state, transcript);
+
+    // Pre-open the ElevenLabs WebSocket NOW — it connects asynchronously while
+    // the planner runs, eliminating TTS setup time from the critical audio path.
+    const ttsStream = getTtsProvider().openStream({ language: state.language });
+    this.activeTtsStream = ttsStream;
+
+    // Step 1: Planner — intent + tool decisions (~200–300ms)
 
     const decision = await runPlannerAgent(getLlm(), state, transcript, correlationId);
 
@@ -286,7 +313,7 @@ export class ConversationOrchestrator {
     }
 
     // Step 3: Response Agent streaming + Speech Chunking + TTS (parallel)
-    await this.streamResponse(state, transcript, decision, toolResults, correlationId);
+    await this.streamResponse(state, transcript, decision, toolResults, correlationId, ttsStream);
   }
 
   private async streamResponse(
@@ -294,11 +321,10 @@ export class ConversationOrchestrator {
     transcript: string,
     decision: Awaited<ReturnType<typeof runPlannerAgent>>,
     toolResults: Awaited<ReturnType<typeof executeTools>>,
-    correlationId: string
+    correlationId: string,
+    // Pre-opened by runPipeline so TTS WS is already connecting while planner ran.
+    ttsStream: import('../providers/tts/provider.js').TtsStream
   ): Promise<void> {
-    // Open TTS stream BEFORE we start streaming LLM tokens
-    // This eliminates TTS connection setup time from the critical path
-    const ttsStream = getTtsProvider().openStream({ language: state.language });
     this.activeTtsStream = ttsStream;
 
     this.bus.emit(VoiceEvents.TTS_STARTED, {
