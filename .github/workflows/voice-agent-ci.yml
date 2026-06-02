@@ -1,0 +1,187 @@
+name: Voice Agent CI
+
+on:
+  push:
+    branches: [main, dev]
+    paths:
+      - 'apps/voice-agent/**'
+      - 'packages/ai/**'
+      - 'packages/config/**'
+      - 'packages/database/**'
+      - 'packages/elevenlabs/**'
+      - 'packages/lead-engine/**'
+      - 'packages/logger/**'
+      - 'packages/shared/**'
+      - 'packages/twilio/**'
+      - 'pnpm-lock.yaml'
+      - '.github/workflows/voice-agent-ci.yml'
+  pull_request:
+    branches: [main, dev]
+    paths:
+      - 'apps/voice-agent/**'
+      - 'packages/ai/**'
+      - 'packages/config/**'
+      - 'packages/database/**'
+      - 'packages/elevenlabs/**'
+      - 'packages/lead-engine/**'
+      - 'packages/logger/**'
+      - 'packages/shared/**'
+      - 'packages/twilio/**'
+      - 'pnpm-lock.yaml'
+      - '.github/workflows/voice-agent-ci.yml'
+
+concurrency:
+  group: voice-agent-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  typecheck-and-build:
+    name: Typecheck & Build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma client
+        run: pnpm --filter @property-ai/database exec prisma generate
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+
+      - name: Build shared packages (dependency order)
+        run: |
+          pnpm --filter @property-ai/logger build
+          pnpm --filter @property-ai/shared build
+          pnpm --filter @property-ai/config build
+          pnpm --filter @property-ai/database build
+          pnpm --filter @property-ai/ai build
+          pnpm --filter @property-ai/elevenlabs build
+          pnpm --filter @property-ai/twilio build
+          pnpm --filter @property-ai/lead-engine build
+
+      - name: Typecheck voice-agent
+        run: pnpm --filter @property-ai/voice-agent lint
+
+      - name: Build voice-agent
+        run: pnpm --filter @property-ai/voice-agent build
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: voice-agent-dist
+          path: apps/voice-agent/dist/
+          retention-days: 7
+
+  smoke-test:
+    name: Smoke Test (startup)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: typecheck-and-build
+
+    env:
+      NODE_ENV: test
+      VOICE_AGENT_PORT: 4001
+      # Stubs — voice-agent must start cleanly without real external services
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      JWT_SECRET: ci-jwt-secret
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      AWS_REGION: us-east-1
+      BEDROCK_MODEL_ID: us.anthropic.claude-sonnet-4-6
+      TWILIO_ACCOUNT_SID: ${{ secrets.TWILIO_ACCOUNT_SID }}
+      TWILIO_AUTH_TOKEN: ${{ secrets.TWILIO_AUTH_TOKEN }}
+      TWILIO_PHONE_NUMBER: ${{ secrets.TWILIO_PHONE_NUMBER }}
+      ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
+      ELEVENLABS_VOICE_ID: ${{ secrets.ELEVENLABS_VOICE_ID }}
+      DEEPGRAM_API_KEY: ${{ secrets.DEEPGRAM_API_KEY }}
+      VOICE_AGENT_URL: https://ci.example.com
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Download build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: voice-agent-dist
+          path: apps/voice-agent/dist/
+
+      - name: Generate Prisma client
+        run: pnpm --filter @property-ai/database exec prisma generate
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+
+      - name: Start voice-agent and verify HTTP health
+        run: |
+          node apps/voice-agent/dist/index.js &
+          SERVER_PID=$!
+          echo "SERVER_PID=$SERVER_PID" >> $GITHUB_ENV
+
+          # Wait up to 15s for the server to respond
+          for i in $(seq 1 15); do
+            if curl -sf http://localhost:4001/health > /dev/null 2>&1; then
+              echo "Voice agent is up after ${i}s"
+              break
+            fi
+            if [ $i -eq 15 ]; then
+              echo "Voice agent did not start in time"
+              kill $SERVER_PID 2>/dev/null || true
+              exit 1
+            fi
+            sleep 1
+          done
+
+          # Verify /health response
+          RESPONSE=$(curl -sf http://localhost:4001/health)
+          echo "Health response: $RESPONSE"
+
+          # Verify /voice/status endpoint
+          STATUS=$(curl -sf http://localhost:4001/voice/status)
+          echo "Status response: $STATUS"
+
+          kill $SERVER_PID
+
+  notify-on-failure:
+    name: Notify on Failure
+    runs-on: ubuntu-latest
+    needs: [typecheck-and-build, smoke-test]
+    if: failure() && github.ref == 'refs/heads/main'
+    steps:
+      - name: Post failure summary
+        run: |
+          echo "## Voice Agent CI Failed" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Branch: \`${{ github.ref_name }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "Commit: \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "Triggered by: ${{ github.actor }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Check the [Actions run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) for details." >> $GITHUB_STEP_SUMMARY

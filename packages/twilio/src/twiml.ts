@@ -65,8 +65,8 @@ export function generateHangupTwiML(audioUrl?: string, text?: string): string {
   return response.toString();
 }
 
-function mapLanguageCode(lang: string): string {
-  const map: Record<string, string> = {
+function mapLanguageCode(lang: string) {
+  const map: Record<string, 'en-IN' | 'hi-IN' | 'mr-IN'> = {
     en: 'en-IN',
     hi: 'hi-IN',
     mr: 'mr-IN',
