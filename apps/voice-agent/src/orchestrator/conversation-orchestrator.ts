@@ -59,13 +59,25 @@ import type { TtsStream } from '../providers/tts/provider.js';
 
 const log = createChildLogger({ module: 'orchestrator' });
 
-// Single Sonnet 4.6 instance shared across Planner and Response Agent.
-// Stateless — safe to share across concurrent calls.
-const llm = new BedrockStreamingProvider(
-  undefined,
-  process.env.BEDROCK_MODEL_ID ?? 'us.anthropic.claude-sonnet-4-6'
-);
-const ttsProvider = new ElevenLabsStreamingProvider();
+// Lazy singletons — instantiated on first call so the module can be loaded
+// without env vars present (e.g. during CI health-check startup).
+let _llm: BedrockStreamingProvider | null = null;
+let _ttsProvider: ElevenLabsStreamingProvider | null = null;
+
+function getLlm(): BedrockStreamingProvider {
+  if (!_llm) {
+    _llm = new BedrockStreamingProvider(
+      undefined,
+      process.env.BEDROCK_MODEL_ID ?? 'us.anthropic.claude-sonnet-4-6'
+    );
+  }
+  return _llm;
+}
+
+function getTtsProvider(): ElevenLabsStreamingProvider {
+  if (!_ttsProvider) _ttsProvider = new ElevenLabsStreamingProvider();
+  return _ttsProvider;
+}
 
 export class ConversationOrchestrator {
   private readonly bus: VoiceEventBus;
@@ -187,7 +199,7 @@ export class ConversationOrchestrator {
     // Step 1: Planner — intent + tool decisions (~200ms)
     this.metrics.markLlmStart(correlationId);
 
-    const decision = await runPlannerAgent(llm, state, transcript, correlationId);
+    const decision = await runPlannerAgent(getLlm(), state, transcript, correlationId);
 
     this.bus.emit(VoiceEvents.INTENT_DETECTED, {
       callSid: this.callSid,
@@ -286,7 +298,7 @@ export class ConversationOrchestrator {
   ): Promise<void> {
     // Open TTS stream BEFORE we start streaming LLM tokens
     // This eliminates TTS connection setup time from the critical path
-    const ttsStream = ttsProvider.openStream({ language: state.language });
+    const ttsStream = getTtsProvider().openStream({ language: state.language });
     this.activeTtsStream = ttsStream;
 
     this.bus.emit(VoiceEvents.TTS_STARTED, {
@@ -348,7 +360,7 @@ export class ConversationOrchestrator {
     // early caused silence: any noise during the ~1700ms Bedrock wait fired a
     // false barge-in → isAgentSpeaking=false → loop broke → no audio played.
     for await (const token of runResponseAgent(
-      llm, state, transcript, decision, toolResults, correlationId
+      getLlm(), state, transcript, decision, toolResults, correlationId
     )) {
       fullText += token;
       this.currentResponseText = fullText;
@@ -435,7 +447,7 @@ export class ConversationOrchestrator {
     };
 
     const greetingText = greetings[state.language] ?? greetings['en']!;
-    const ttsStream = ttsProvider.openStream({ language: state.language });
+    const ttsStream = getTtsProvider().openStream({ language: state.language });
     this.activeTtsStream = ttsStream;
 
     ttsStream.on('chunk', (chunk) => {
@@ -500,7 +512,7 @@ export class ConversationOrchestrator {
     };
 
     const text = fallbacks[state.language] ?? fallbacks['en']!;
-    const ttsStream = ttsProvider.openStream({ language: state.language });
+    const ttsStream = getTtsProvider().openStream({ language: state.language });
     this.activeTtsStream = ttsStream;
 
     ttsStream.on('chunk', (chunk) => {
