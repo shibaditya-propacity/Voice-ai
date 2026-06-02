@@ -19,6 +19,10 @@ const envSchema = z.object({
   VOICE_AGENT_URL: z.string().url(),
   ELEVENLABS_API_KEY: z.string(),
   ELEVENLABS_VOICE_ID: z.string(),
+  // Streaming STT
+  DEEPGRAM_API_KEY: z.string().optional(),
+  // Optional Redis for distributed session store
+  REDIS_URL: z.string().url().optional(),
 });
 
 function parseEnv() {
