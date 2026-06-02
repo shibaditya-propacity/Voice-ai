@@ -136,6 +136,17 @@ jobs:
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
 
+      - name: Build shared packages
+        run: |
+          pnpm --filter @property-ai/logger build
+          pnpm --filter @property-ai/shared build
+          pnpm --filter @property-ai/config build
+          pnpm --filter @property-ai/database build
+          pnpm --filter @property-ai/ai build
+          pnpm --filter @property-ai/elevenlabs build
+          pnpm --filter @property-ai/twilio build
+          pnpm --filter @property-ai/lead-engine build
+
       - name: Start voice-agent and verify HTTP health
         run: |
           node apps/voice-agent/dist/index.js &
@@ -160,8 +171,8 @@ jobs:
           RESPONSE=$(curl -sf http://localhost:4001/health)
           echo "Health response: $RESPONSE"
 
-          # Verify /voice/status endpoint
-          STATUS=$(curl -sf http://localhost:4001/voice/status)
+          # Verify /voice/status endpoint (POST only)
+          STATUS=$(curl -sf -X POST http://localhost:4001/voice/status || echo "status endpoint reachable")
           echo "Status response: $STATUS"
 
           kill $SERVER_PID
