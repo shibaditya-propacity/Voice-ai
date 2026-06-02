@@ -106,7 +106,7 @@ async function initializeCall(
   const vad = new VoiceActivityDetector({
     speechThreshold: 0.012,
     speechOnsetFrames: 3,
-    speechOffsetFrames: 20,
+    speechOffsetFrames: 10,  // 200ms (was 400ms) — faster barge-in response
   });
 
   // 5. Create conversation orchestrator
@@ -142,7 +142,7 @@ async function initializeCall(
       encoding: 'mulaw',
       sampleRate: 8000,
       interimResults: true,
-      endpointingMs: 200,
+      endpointingMs: 80,   // 80ms silence → final transcript (was 200ms)
     });
 
     call.sttSession = sttSession;

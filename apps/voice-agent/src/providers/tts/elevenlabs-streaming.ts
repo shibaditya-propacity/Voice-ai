@@ -38,7 +38,7 @@ class ElevenLabsStream extends EventEmitter implements TtsStream {
   /** finish() was called before WS opened — flush + close once open */
   private pendingFinish = false;
   private textBuffer = '';
-  private readonly MIN_TEXT_BEFORE_FLUSH = 20; // chars
+  private readonly MIN_TEXT_BEFORE_FLUSH = 8; // chars (was 20) — send to ElevenLabs sooner
 
   constructor(ws: WebSocket) {
     super();
@@ -106,9 +106,8 @@ class ElevenLabsStream extends EventEmitter implements TtsStream {
           use_speaker_boost: true,
         },
         generation_config: {
-          // Schedule progressive chunk sizes: start small for fast TTFA,
-          // then larger for efficiency as the response continues
-          chunk_length_schedule: [50, 80, 120, 150],
+          // Start very small for fast first audio, grow for efficiency
+          chunk_length_schedule: [20, 50, 80, 120],
         },
       }));
 

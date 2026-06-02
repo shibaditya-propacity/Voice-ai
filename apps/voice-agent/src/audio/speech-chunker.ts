@@ -22,7 +22,7 @@ const SENTENCE_BOUNDARY = /([.!?।॥]["\s]|[.!?।॥]$)/;
 // Soft boundary (comma, dash) used when sentence is getting too long
 const SOFT_BOUNDARY = /([,;—–]\s)/;
 
-const MIN_CHUNK_CHARS = 30;   // Don't chunk until we have at least this many chars
+const MIN_CHUNK_CHARS = 15;   // Don't chunk until we have at least this many chars (was 30)
 const MAX_CHUNK_CHARS = 200;  // Force a chunk if this many chars accumulated
 
 export interface ChunkerConfig {
